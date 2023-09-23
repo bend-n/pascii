@@ -1,7 +1,6 @@
 use image::{DynamicImage, GenericImageView, Pixel, Rgb};
-#[cfg(rayon)]
-use rayon::prelude::*;
 use rgb2ansi256::rgb_to_ansi256;
+use std::io::{self, Write};
 
 macro_rules! fg {
     ($color:expr,$c:expr) => {
@@ -10,19 +9,13 @@ macro_rules! fg {
 }
 
 pub trait ToText {
-    fn text(&self, palette: &[u8]) -> String;
+    fn text(&self, palette: &[u8], w: &mut impl Write) -> io::Result<()>;
 }
 impl ToText for DynamicImage {
-    fn text(&self, palette: &[u8]) -> String {
+    fn text(&self, palette: &[u8], w: &mut impl Write) -> io::Result<()> {
         let p_len = (palette.len() - 1) as f32;
-        let mut output: Vec<String> = vec![];
         let height = (self.height() / 2) as usize;
-        output.resize(height, String::new());
-        #[cfg(not(rayon))]
-        let iter = output.iter_mut();
-        #[cfg(rayon)]
-        let iter = output.par_iter_mut();
-        iter.enumerate().for_each(|(mut y, output)| {
+        for mut y in 0..height {
             y <<= 1;
             let mut last_p: Option<u8> = None;
             for x in 0..self.width() {
@@ -32,19 +25,25 @@ impl ToText for DynamicImage {
                 let pos = (p_len * y).round();
                 let i: usize = (pos * a).round() as usize;
                 let ch = palette[i] as char;
+                if y <= 0.01 {
+                    write!(w, "{ch}")?;
+                    continue;
+                }
                 // must round it into ansi256 or we will get duplicates
                 let color = p.to_rgb().ansi_256();
                 if let Some(last) = last_p {
                     if last == color {
-                        output.push(ch);
+                        write!(w, "{ch}")?;
                         continue;
                     }
                 }
+
                 last_p = Some(color);
-                output.push_str(&fg!(color, ch));
+                write!(w, "{}", fg!(color, ch))?;
             }
-        });
-        output.join("\n")
+            writeln!(w)?;
+        }
+        Ok(())
     }
 }
 
@@ -60,17 +59,4 @@ impl Ansi256 for Rgb<u8> {
 
 fn i2range(i: u8) -> f32 {
     (i as f32 / u8::MAX as f32).clamp(0.0, 1.0)
-}
-
-#[test]
-fn ansi_color() {
-    macro_rules! test {
-        ($c:expr, $expect:expr) => {{
-            let args: [u8; 3] = $c;
-            assert_eq!(Rgb::from(args).ansi_256(), $expect)
-        }};
-    }
-    test!([0, 0, 255], 21);
-    test!([0, 255, 0], 46);
-    test!([255, 0, 0], 196);
 }

@@ -1,6 +1,6 @@
 use clap::Parser;
-use picture::*;
-use std::path::PathBuf;
+use picture::ToText;
+use std::{io::BufWriter, path::PathBuf};
 
 mod picture;
 #[derive(Parser)]
@@ -14,6 +14,7 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let p = image::open(args.from)?;
-    println!("{}", p.text("   ...,:clodxkO0KXM".as_bytes()));
+    let mut s = BufWriter::new(std::io::stdout().lock());
+    p.text(b"   ...,:clodxkO0KXM", &mut s)?;
     Ok(())
 }
