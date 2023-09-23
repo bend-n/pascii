@@ -15,6 +15,6 @@ image = { version = "0.24.6", features = [
 rgb2ansi256 = "0.1.1"
 
 [profile.release]
-lto = true
+debug = 2
+lto = "thin"
 opt-level = 3
-strip = true
